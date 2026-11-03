@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>e-Trace · suivi en piste</title>
+<meta name="theme-color" content="#0e2a47">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="e-Trace">
+<style>
+  /* Téléphone du pilote : position envoyée au PC course pendant les montées. Thème Lagon d'e-Chicane. */
+  :root {
+    --bg: #e9f4f5; --surface: #ffffff; --surface-2: #d8ebee; --fg: #0e2a47; --muted: #4a6274; --line: #bcd7dc;
+    --flag: #1f5fae; --flag-ink: #ffffff; --ok: #1d6a2e; --ok-bg: #d9f0dc; --warn: #b26a00; --warn-bg: #fff4e0; --ko: #b3261e;
+    --run: #1d7a3a; --night: #0b1e33; --night-2: #12304f; --night-ink: #cfe0ec;
+    --f-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+    --f-body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --f-num: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) { :root {
+    --bg: #0b1824; --surface: #12232f; --surface-2: #1b3140; --fg: #eaf4f6; --muted: #9fb6c2; --line: #2a4252;
+    --flag: #5b9bf0; --flag-ink: #06121f; --ok: #6ee7a8; --ok-bg: #143b2a; --warn: #ffc56b; --warn-bg: #3a2a10; --ko: #ff8a80; color-scheme: dark } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.45 var(--f-body); -webkit-text-size-adjust: 100%; }
+  body.armed { background: var(--night); color: #fff; }
+  #app { max-width: 560px; margin: 0 auto; display: grid; gap: 14px; padding: max(14px, env(safe-area-inset-top, 0px)) 16px max(20px, env(safe-area-inset-bottom, 0px)); }
+  h1, h2 { font-family: var(--f-display); margin: 0; text-transform: uppercase; letter-spacing: .02em; }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; border: 0; background: none; }
+  :focus-visible { outline: 3px solid var(--flag); outline-offset: 2px; }
+  .top { display: flex; align-items: center; gap: 10px; }
+  .top h1 { font-size: 1.9rem; font-weight: 800; line-height: 1; }
+  .flagmark { width: 26px; height: 19px; border-radius: 3px; border: 2px solid currentColor; background: repeating-conic-gradient(currentColor 0 25%, transparent 0 50%) 0 0 / 8px 8px; flex-shrink: 0; }
+  .bib { margin-left: auto; font-family: var(--f-display); font-weight: 800; font-size: 1.9rem; line-height: 1.1; padding: 0 12px; border-radius: 10px; background: var(--fg); color: var(--bg); }
+  body.armed .bib { background: #fff; color: var(--night); }
+  .sub { margin-left: auto; font-size: .82rem; color: var(--muted); }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: grid; gap: 12px; }
+  body.armed .card { background: var(--night-2); border-color: transparent; }
+  label { display: grid; gap: 6px; font-weight: 700; font-size: .9rem; color: var(--muted); }
+  input[type=text], input[type=tel] { width: 100%; height: 52px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); font-size: 1.3rem; color: var(--fg); }
+  #code { font-family: var(--f-num); text-transform: uppercase; letter-spacing: .06em; }
+  #bibIn { font-family: var(--f-display); font-weight: 700; font-size: 1.6rem; }
+  .who { background: var(--surface-2); border-radius: 12px; padding: 10px 14px; font-weight: 700; }
+  .who small { display: block; font-weight: 400; font-size: .8rem; color: var(--muted); }
+  .btn { height: 56px; border-radius: 14px; background: var(--flag); color: var(--flag-ink); font-family: var(--f-display); font-weight: 800; font-size: 1.35rem; text-transform: uppercase; letter-spacing: .04em; width: 100%; }
+  .btn[disabled] { opacity: .55; }
+  .btn2 { height: 48px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-weight: 700; color: var(--muted); width: 100%; }
+  .link { color: var(--flag); text-decoration: underline; font-size: .9rem; padding: 6px; justify-self: center; }
+  .msg { color: var(--warn); font-size: .92rem; min-height: 1.2em; }
+  .steps { display: grid; gap: 8px; }
+  .steps div { display: flex; gap: 10px; font-size: .95rem; }
+  .steps b { font-family: var(--f-display); font-size: 1.25rem; color: var(--flag); line-height: 1.2; }
+  .hero { border-radius: 20px; padding: 22px 18px; text-align: center; display: grid; gap: 6px; background: var(--fg); color: #fff; }
+  .hero .k { font-family: var(--f-display); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #9cc3dd; display: flex; gap: 8px; justify-content: center; align-items: center; }
+  .hero .v { font-family: var(--f-display); font-weight: 800; font-size: 2.8rem; line-height: 1; text-transform: uppercase; }
+  .hero p { margin: 0; color: var(--night-ink); font-size: .95rem; }
+  .hero.run { background: var(--run); } .hero.run .k { color: #c9f0d4; }
+  .hero.fin { background: #1f5fae; }
+  .hero.pend { background: var(--warn-bg); color: var(--fg); } .hero.pend .k { color: var(--warn); } .hero.pend p { color: var(--muted); }
+  .hero.ko { background: #fde7e5; color: #5a1410; } .hero.ko .k { color: var(--ko); } .hero.ko p { color: #5a1410; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: #7dff9f; box-shadow: 0 0 0 5px rgb(125 255 159 / .25); }
+  .rows { display: grid; }
+  .row { display: flex; justify-content: space-between; gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+  body.armed .row { border-color: #24476b; }
+  .row:last-child { border-bottom: 0; }
+  .row b { text-align: right; }
+  .good { color: var(--ok); } .bad { color: var(--ko); } .mid { color: var(--warn); }
+  body.armed .good { color: #7dff9f; } body.armed .mid { color: #ffc56b; } body.armed .bad { color: #ff8a80; }
+  .note { background: var(--warn-bg); border: 1px solid #f0c98a; border-radius: 14px; padding: 12px 14px; font-size: .95rem; }
+  body.armed .note { display: none; }
+  .plan { border-radius: 14px; overflow: hidden; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .tile { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; }
+  body.armed .tile { background: var(--night-2); border-color: transparent; }
+  .tile small { display: block; font-size: .8rem; color: var(--muted); } body.armed .tile small { color: #9cc3dd; }
+  .tile b { font-family: var(--f-display); font-size: 1.7rem; }
+  .test { border: 2px dashed var(--warn); }
+  .foot { font-size: .8rem; color: var(--muted); text-align: center; display: grid; gap: 4px; justify-items: center; }
+  body.armed .foot { color: #9cc3dd; }
+  .stopbadge { font-family: var(--f-display); font-weight: 800; font-size: 1.2rem; text-transform: uppercase; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+/* ===== e-Trace · noyau commun (e-Trace, e-DC, PC course) =====
+   Tracé de référence : { name, pts: [lat, lng, lat, lng, …], marks: [{ k, name, i }] }
+   k : 'pd' parc fermé départ · 'dep' ligne de départ · 'pt' point marqué (chicane…) · 'arr' ligne d'arrivée · 'pa' parc fermé arrivée
+   i : indice du point du tracé (dans pts / 2). Distances en mètres, comptées depuis la ligne de départ. */
+const ET = (() => {
+  const R = 6371008.8, rad = Math.PI / 180;
+  // Réglages par défaut (modifiables plus tard par épreuve : champ « etrace » du document de l'épreuve)
+  const DEF = { fast: 2, slow: 30, vStop: 1, nStop: 2, orange: 2, red: 10, lost: 6, endGuard: 50, maxAcc: 25 };
+  const cfg = ev => { const o = { ...DEF }, e = ev && ev.etrace; if (e && typeof e === 'object') for (const k in DEF) if (Number.isFinite(+e[k]) && +e[k] > 0) o[k] = +e[k]; return o; };
+  const dist = (a1, o1, a2, o2) => { const k = Math.cos((a1 + a2) / 2 * rad); return Math.hypot((o2 - o1) * rad * R * k, (a2 - a1) * rad * R); };
+
+  // Prépare un tracé : coordonnées planes locales, distances cumulées, repères
+  function prep(ref) {
+    if (!ref || !Array.isArray(ref.pts) || ref.pts.length < 4) return null;
+    const n = Math.floor(ref.pts.length / 2), lat0 = ref.pts[0], k = Math.cos(lat0 * rad);
+    const P = [], cum = [0];
+    for (let j = 0; j < n; j++) P.push([ref.pts[2 * j + 1] * rad * R * k, ref.pts[2 * j] * rad * R]);
+    for (let j = 1; j < n; j++) cum.push(cum[j - 1] + Math.hypot(P[j][0] - P[j - 1][0], P[j][1] - P[j - 1][1]));
+    const marks = (Array.isArray(ref.marks) ? ref.marks : []).filter(m => m && Number.isInteger(m.i) && m.i >= 0 && m.i < n).map(m => ({ k: m.k, name: String(m.name || ''), i: m.i })).sort((a, b) => a.i - b.i);
+    const dm = marks.find(m => m.k === 'dep'), am = marks.find(m => m.k === 'arr');
+    const iDep = dm ? dm.i : 0, iArr = am ? am.i : n - 1, c0 = cum[iDep];
+    marks.forEach(m => m.s = cum[m.i] - c0);
+    let c = 0; marks.forEach(m => { if (m.k === 'pt') { c++; m.n = c; if (!m.name) m.name = 'Point ' + c; } });
+    return { ref, n, P, cum, lat0, k, iDep, iArr, c0, L: cum[iArr] - c0, marks, toXY: (lat, lng) => [lng * rad * R * k, lat * rad * R] };
+  }
+  // Situe une position sur le tracé : abscisse s (m depuis le départ), écart latéral, zone
+  function locate(pr, lat, lng, hint) {
+    if (!pr) return null;
+    const [x, y] = pr.toXY(lat, lng);
+    let best = null;
+    for (let j = 0; j < pr.n - 1; j++) {
+      const [ax, ay] = pr.P[j], [bx, by] = pr.P[j + 1], dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+      const u = l2 ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / l2)) : 0;
+      const d = Math.hypot(x - ax - u * dx, y - ay - u * dy);
+      const s = pr.cum[j] + u * Math.sqrt(l2) - pr.c0;
+      // à distance comparable, on préfère le tronçon proche de la position précédente (route qui repasse près d'elle-même)
+      const score = d + (Number.isFinite(hint) ? Math.min(60, Math.abs(s - hint) / 20) : 0);
+      if (!best || score < best.score) best = { score, s, off: d };
+    }
+    return { s: best.s, off: best.off, zone: best.s < 0 ? 'pd' : best.s > pr.L ? 'pa' : 'ch' };
+  }
+  const km = s => (Math.abs(s) / 1000).toFixed(2).replace('.', ',') + ' km';
+  // Libellé lisible d'une abscisse : « entre C2 et C3 · 1,40 km du départ »
+  function where(pr, s) {
+    if (!pr || !Number.isFinite(s)) return '';
+    if (s < -5) return 'liaison avant le départ' + (pr.marks.some(m => m.k === 'pd') ? ' (parc fermé départ)' : '');
+    if (s > pr.L + 5) return 'après l\'arrivée' + (pr.marks.some(m => m.k === 'pa') ? ' (vers le parc fermé arrivée)' : '');
+    const pts = pr.marks.filter(m => m.k === 'pt');
+    const near = pts.find(m => Math.abs(m.s - s) <= 25);
+    let t;
+    if (near) t = 'à ' + (near.name || 'C' + near.n);
+    else {
+      const prev = [...pts].reverse().find(m => m.s < s), next = pts.find(m => m.s > s);
+      t = prev && next ? `entre ${prev.name} et ${next.name}` : prev ? `après ${prev.name}` : next ? `avant ${next.name}` : '';
+    }
+    return (t ? t + ' · ' : '') + km(s) + ' du départ';
+  }
+  // Point du tracé à l'abscisse s (pour placer un repère)
+  function at(pr, s) {
+    const c = s + pr.c0;
+    let j = 0; while (j < pr.n - 2 && pr.cum[j + 1] < c) j++;
+    const l = pr.cum[j + 1] - pr.cum[j], u = l ? Math.max(0, Math.min(1, (c - pr.cum[j]) / l)) : 0;
+    return [pr.P[j][0] + u * (pr.P[j + 1][0] - pr.P[j][0]), pr.P[j][1] + u * (pr.P[j + 1][1] - pr.P[j][1])];
+  }
+
+  // Plan SVG du tracé. dots : [{ lat, lng, color, label, pulse }]. th : couleurs (fond clair ou sombre)
+  function svg(pr, dots = [], th = {}) {
+    const C = { road: '#c9d8e0', chrono: '#1f5fae', liaison: '#9fb4c2', ink: '#0e2a47', muted: '#4a6274', bg: '#ffffff', mark: '#1f5fae', ...th };
+    if (!pr) return `<div style="padding:24px 10px;text-align:center;color:${C.muted};font-size:.9rem">Aucun tracé de référence pour cette épreuve.<br>Le Directeur de course peut l'enregistrer dans e-DC, onglet « Voiture 0 ».</div>`;
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    pr.P.forEach(([x, y]) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); });
+    // hauteur adaptée à la forme du tracé (ni bande vide, ni plan trop haut)
+    const W = 360, pad = 24, H = Math.round(Math.max(170, Math.min(320, 2 * pad + (W - 2 * pad) * (y1 - y0) / Math.max(1, x1 - x0))));
+    const sc = Math.min((W - 2 * pad) / Math.max(1, x1 - x0), (H - 2 * pad) / Math.max(1, y1 - y0));
+    const ox = (W - (x1 - x0) * sc) / 2, oy = (H - (y1 - y0) * sc) / 2;
+    const T = ([x, y]) => [ox + (x - x0) * sc, H - oy - (y - y0) * sc];
+    const path = (a, b) => { let d = ''; for (let j = a; j <= b; j++) { const [u, v] = T(pr.P[j]); d += (j === a ? 'M' : 'L') + u.toFixed(1) + ',' + v.toFixed(1); } return d; };
+    let s = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img" aria-label="Plan du tracé">`;
+    if (pr.iDep > 0) s += `<path d="${path(0, pr.iDep)}" fill="none" stroke="${C.liaison}" stroke-width="3" stroke-dasharray="2 6" stroke-linecap="round"/>`;
+    if (pr.iArr < pr.n - 1) s += `<path d="${path(pr.iArr, pr.n - 1)}" fill="none" stroke="${C.liaison}" stroke-width="3" stroke-dasharray="2 6" stroke-linecap="round"/>`;
+    s += `<path d="${path(pr.iDep, pr.iArr)}" fill="none" stroke="${C.road}" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>`;
+    s += `<path d="${path(pr.iDep, pr.iArr)}" fill="none" stroke="${C.chrono}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`;
+    const lineAt = (i, label) => {
+      const a = pr.P[Math.max(0, i - 1)], b = pr.P[Math.min(pr.n - 1, i + 1)], [u, v] = T(pr.P[i]);
+      let dx = b[0] - a[0], dy = -(b[1] - a[1]); const l = Math.hypot(dx, dy) || 1; dx /= l; dy /= l;
+      return `<line x1="${(u - dy * 14).toFixed(1)}" y1="${(v + dx * 14).toFixed(1)}" x2="${(u + dy * 14).toFixed(1)}" y2="${(v - dx * 14).toFixed(1)}" stroke="${C.ink}" stroke-width="4" stroke-dasharray="3 3"/>`
+        + `<text x="${(u + dy * 18).toFixed(1)}" y="${(v - dx * 18 + 4).toFixed(1)}" text-anchor="${dy >= 0 ? 'start' : 'end'}" font-size="12" font-weight="700" fill="${C.ink}" font-family="Atkinson Hyperlegible, sans-serif">${label}</text>`;
+    };
+    for (const m of pr.marks) {
+      const [u, v] = T(pr.P[m.i]);
+      if (m.k === 'dep') s += lineAt(m.i, 'Départ');
+      else if (m.k === 'arr') s += lineAt(m.i, 'Arrivée');
+      else if (m.k === 'pd' || m.k === 'pa') s += `<rect x="${(u - 7).toFixed(1)}" y="${(v - 7).toFixed(1)}" width="14" height="14" rx="3" fill="${C.bg}" stroke="${C.muted}" stroke-width="2.5"><title>${m.k === 'pd' ? 'Parc fermé départ' : 'Parc fermé arrivée'}</title></rect>`;
+      else if (m.k === 'pt') s += `<circle cx="${u.toFixed(1)}" cy="${v.toFixed(1)}" r="9" fill="${C.mark}" stroke="${C.bg}" stroke-width="2"/><text x="${u.toFixed(1)}" y="${(v + 3.5).toFixed(1)}" text-anchor="middle" font-size="9" font-weight="700" fill="#fff" font-family="Atkinson Hyperlegible, sans-serif">C${m.n}</text>`;
+    }
+    for (const d of dots) {
+      if (!Number.isFinite(d.lat) || !Number.isFinite(d.lng)) continue;
+      const [u, v] = T(pr.toXY(d.lat, d.lng));
+      if (u < -40 || u > W + 40 || v < -40 || v > H + 40) continue;
+      if (d.pulse) s += `<circle cx="${u.toFixed(1)}" cy="${v.toFixed(1)}" r="17" fill="${d.color}" fill-opacity=".28"/>`;
+      s += `<circle cx="${u.toFixed(1)}" cy="${v.toFixed(1)}" r="8" fill="${d.color}" stroke="${C.bg}" stroke-width="2.5"/>`;
+      if (d.label) s += `<text x="${(u + 12).toFixed(1)}" y="${(v - 10).toFixed(1)}" font-size="13" font-weight="700" fill="${C.ink}" font-family="Atkinson Hyperlegible, sans-serif" paint-order="stroke" stroke="${C.bg}" stroke-width="3">${d.label}</text>`;
+    }
+    return s + '</svg>';
+  }
+
+  // État d'alerte d'un pilote en piste, vu par le PC course ou e-DC.
+  // trk : document public/track ; T : document trace du téléphone du pilote (ou null), reçu à T._got (horloge locale)
+  // Retour : { lvl: 'ok' | 'orange' | 'red' | 'lost', dur, age, msg }
+  function alertState(trk, T, pr, c, now = Date.now()) {
+    if (!trk || trk.status !== 'run' || !trk.bib) return null;
+    const since = (now - (trk._got || now)) / 1000;
+    if (!T) return { lvl: 'none' };                     // pilote sans e-Trace : rien à surveiller
+    const age = (now - (T._got || 0)) / 1000 + (Number(T.fa) || 0);   // + âge du dernier point GPS au moment de l'envoi
+    const thisRun = T.armed && String(T.bib) === String(trk.bib) && Number(T.run) === Number(trk.startAt);
+    if ((age > c.lost && since > c.lost) || (!thisRun && since > c.lost + 2)) return { lvl: 'lost', age: Math.round(Math.min(age, since)) };
+    if (!thisRun) return { lvl: 'ok' };
+    const nearEnd = pr && Number.isFinite(T.d) && T.d > pr.L - c.endGuard;
+    const dur = T.stopFor > 0 ? T.stopFor + Math.max(0, age) : 0;
+    if (dur >= c.red && !nearEnd) return { lvl: 'red', dur: Math.floor(dur) };
+    if (dur >= c.orange && !nearEnd) return { lvl: 'orange', dur: Math.floor(dur) };
+    return { lvl: 'ok' };
+  }
+  const COL = { orange: '#e07a00', red: '#b3261e', lost: '#6a4fc4', ok: '#1d7a3a' };
+  const LBL = { orange: 'Arrêté', red: 'Arrêt prolongé', lost: 'Position perdue' };
+
+  // ----- Traitement d'un enregistrement Voiture 0 -----
+  // fixes : [{ t, lat, lng, acc }] ; marks : [{ k, name, t }] → tracé allégé { pts, marks, stats }
+  function build(fixes, marks, maxAcc = 25) {
+    let F = fixes.filter(f => Number.isFinite(f.lat) && Number.isFinite(f.lng) && (!(f.acc > maxAcc)));
+    // sauts impossibles (> 70 m/s) écartés
+    const G = [];
+    for (const f of F) { const p = G[G.length - 1]; if (p && f.t > p.t && dist(p.lat, p.lng, f.lat, f.lng) / ((f.t - p.t) / 1000) > 70) continue; if (p && dist(p.lat, p.lng, f.lat, f.lng) < 1) continue; G.push(f); }
+    if (G.length < 2) return null;
+    // lissage léger (moyenne glissante sur 3 points)
+    const S = G.map((f, j) => { if (j === 0 || j === G.length - 1) return { ...f }; const a = G[j - 1], b = G[j + 1]; return { t: f.t, lat: (a.lat + f.lat + b.lat) / 3, lng: (a.lng + f.lng + b.lng) / 3 }; });
+    // repères rattachés au point le plus proche dans le temps
+    const keep = new Set([0, S.length - 1]);
+    const mk = marks.map(m => { let bi = 0, bd = Infinity; S.forEach((f, j) => { const d = Math.abs(f.t - m.t); if (d < bd) { bd = d; bi = j; } }); keep.add(bi); return { k: m.k, name: m.name || '', j: bi }; });
+    // Douglas-Peucker (3 m) en gardant les repères
+    const lat0 = S[0].lat, k = Math.cos(lat0 * rad), XY = S.map(f => [f.lng * rad * R * k, f.lat * rad * R]);
+    const tol = 3, stack = [[0, S.length - 1]];
+    while (stack.length) {
+      const [a, b] = stack.pop(); let md = 0, mi = -1;
+      const [ax, ay] = XY[a], [bx, by] = XY[b], dx = bx - ax, dy = by - ay, l = Math.hypot(dx, dy) || 1;
+      for (let j = a + 1; j < b; j++) { const d = Math.abs((XY[j][0] - ax) * dy - (XY[j][1] - ay) * dx) / l; if (d > md) { md = d; mi = j; } }
+      if (md > tol) { keep.add(mi); stack.push([a, mi], [mi, b]); }
+    }
+    for (const m of mk) keep.add(m.j);
+    const idx = [...keep].sort((a, b) => a - b), map = new Map(idx.map((j, n) => [j, n]));
+    const pts = []; idx.forEach(j => pts.push(+S[j].lat.toFixed(6), +S[j].lng.toFixed(6)));
+    const accs = fixes.map(f => f.acc).filter(Number.isFinite);
+    return { pts, marks: mk.map(m => ({ k: m.k, name: m.name, i: map.get(m.j) })), stats: { raw: fixes.length, kept: idx.length, acc: accs.length ? accs.reduce((a, b) => a + b, 0) / accs.length : null, dur: (fixes[fixes.length - 1].t - fixes[0].t) / 1000 } };
+  }
+  // Import d'un fichier GPX : tout le fichier devient le parcours chronométré
+  function fromGpx(text) {
+    const doc = new DOMParser().parseFromString(text, 'application/xml');
+    const nodes = [...doc.getElementsByTagName('trkpt'), ...doc.getElementsByTagName('rtept')];
+    const fixes = nodes.map((p, j) => ({ t: j * 1000, lat: +p.getAttribute('lat'), lng: +p.getAttribute('lon') })).filter(f => Number.isFinite(f.lat) && Number.isFinite(f.lng));
+    if (fixes.length < 2) return null;
+    return build(fixes, [{ k: 'dep', t: 0 }, { k: 'arr', t: (fixes.length - 1) * 1000 }]);
+  }
+  return { DEF, cfg, dist, prep, locate, where, at, svg, alertState, COL, LBL, build, fromGpx, km };
+})();
+
+
+/* ---------------- État local ---------------- */
+const LS = 'lsa_etrace_v1', LOGK = 'lsa_etrace_log_v1';
+let S = { code: '', bib: '', name: '', test: false };
+try { const r = JSON.parse(localStorage.getItem(LS) || 'null'); if (r && typeof r === 'object') S = { ...S, ...r }; } catch (e) {}
+function persist() { try { localStorage.setItem(LS, JSON.stringify(S)); } catch (e) {} }
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pad = n => String(n).padStart(2, '0');
+const hms = v => { const d = new Date(v); return isNaN(d) ? '' : `${pad(d.getHours())} h ${pad(d.getMinutes())} min ${pad(d.getSeconds())} s`; };
+const normCode = v => String(v || '').toUpperCase().replace(/\s+/g, '').replace(/[^A-Z0-9-]/g, '');
+const normBib = v => String(v || '').replace(/\D/g, '').slice(0, 4);
+const num = (v, d = 0) => Number.isFinite(v) ? v.toFixed(d).replace('.', ',') : '—';
+
+/* ---------------- Liaison Firebase ---------------- */
+let fbUser = null, devStatus = null, subs = [], subCode = null, ev = null, trk = null, refPr = null, refName = '', pilots = null, joinMsg = '', joinBusy = false;
+let C = ET.cfg(null);
+window.liveReady = () => { window.FB.signInAnon().catch(() => { joinMsg = 'Connexion impossible pour le moment (réseau).'; render(); }); render(); };
+window.liveAuthChanged = u => { fbUser = u || null; subscribe(); render(); };
+
+function devDoc(status) { const now = new Date().toISOString(); return { uid: fbUser.uid, poste: 'T' + S.bib, role: 'trace', bib: S.bib, who: S.name ? `n° ${S.bib} · ${S.name}` : `n° ${S.bib}`, ...(status ? { status } : {}), at: now, seenAt: now }; }
+async function join() {
+  const code = normCode(document.getElementById('code').value), bib = normBib(document.getElementById('bibIn').value);
+  if (!code) { joinMsg = 'Tapez le code de l\'épreuve donné au briefing.'; render(); return; }
+  if (!bib) { joinMsg = 'Tapez votre numéro de course.'; render(); return; }
+  if (!window.FB || !fbUser) { joinMsg = 'Pas de connexion pour le moment : réessayez quand le téléphone a du réseau.'; render(); return; }
+  const { fs, doc, getDoc, setDoc, updateDoc } = window.FB;
+  joinBusy = true; joinMsg = 'Vérification…'; render();
+  try {
+    const e = await getDoc(doc(fs, 'events', code));
+    if (!e.exists()) { joinMsg = `Code « ${code} » inconnu : vérifiez-le auprès du PC course.`; return; }
+    const l = await getDoc(doc(fs, 'events', code, 'public', 'list')).catch(() => null);
+    const list = l && l.exists() && Array.isArray(l.data().pilots) ? l.data().pilots : null;
+    const p = list ? list.find(x => String(x.n) === bib) : null;
+    if (list && list.length && !p) { joinMsg = `Le n° ${bib} n'est pas dans la liste des engagés de cette épreuve.`; return; }
+    S.code = code; S.bib = bib; S.name = p ? String(p.name || '') : ''; persist();
+    const dref = doc(fs, 'events', code, 'devices', fbUser.uid), d = await getDoc(dref).catch(() => null);
+    if (d && d.exists()) await updateDoc(dref, { poste: 'T' + bib, bib, who: devDoc().who, seenAt: new Date().toISOString() });
+    else await setDoc(dref, devDoc('pending'));
+    joinMsg = ''; subscribe();
+  } catch (err) {
+    joinMsg = err && err.code === 'unavailable' ? 'Pas de réseau : réessayez dans un instant.' : 'Impossible de rejoindre l\'épreuve (' + ((err && err.code) || 'erreur') + ').';
+  } finally { joinBusy = false; render(); }
+}
+function leave() {
+  if (!confirm('Quitter cette épreuve sur ce téléphone ?')) return;
+  if (window.FB && fbUser && S.code && devStatus === 'ok') { const { fs, doc, deleteDoc } = window.FB; deleteDoc(doc(fs, 'events', S.code, 'trace', fbUser.uid)).catch(() => {}); }
+  S.code = ''; S.bib = ''; S.name = ''; persist(); subscribe(); render();
+}
+function subscribe() {
+  const code = window.FB && fbUser && S.code ? S.code : null;
+  if (code === subCode) return;
+  subs.forEach(u => { try { u(); } catch (e) {} }); subs = [];
+  subCode = code; devStatus = null; ev = null; trk = null; refPr = null; refName = ''; pilots = null; C = ET.cfg(null);
+  if (!code) return;
+  const { fs, doc, onSnapshot, setDoc } = window.FB;
+  let autoAsk = false;
+  subs.push(onSnapshot(doc(fs, 'events', code, 'devices', fbUser.uid), snap => {
+    const was = devStatus;
+    devStatus = snap.exists() ? snap.data().status : 'gone';
+    if (!snap.exists() && !snap.metadata.fromCache && !autoAsk && S.bib) { autoAsk = true; setDoc(doc(fs, 'events', code, 'devices', fbUser.uid), devDoc('pending')).catch(() => {}); }
+    if (devStatus === 'ok' && was !== 'ok') { lastSent = 0; }
+    onTrack();
+    render();
+  }, () => {}));
+  subs.push(onSnapshot(doc(fs, 'events', code), snap => { ev = snap.exists() ? snap.data() : null; C = ET.cfg(ev); render(); }, () => {}));
+  subs.push(onSnapshot(doc(fs, 'events', code, 'public', 'track'), snap => { trk = snap.exists() ? (snap.data() || {}) : null; if (trk) trk._got = Date.now(); onTrack(); render(); }, () => {}));
+  subs.push(onSnapshot(doc(fs, 'events', code, 'ref', 'track'), snap => { const r = snap.exists() ? snap.data() : null; refPr = ET.prep(r); refName = r ? String(r.name || '') : ''; render(); }, () => {}));
+  subs.push(onSnapshot(doc(fs, 'events', code, 'public', 'list'), snap => { const d = snap.exists() ? snap.data() : null; pilots = d && Array.isArray(d.pilots) ? d.pilots : null; const p = pilots && pilots.find(x => String(x.n) === S.bib); if (p && p.name !== S.name) { S.name = String(p.name || ''); persist(); render(); } }, () => {}));
+}
+window.addEventListener('online', () => render());
+window.addEventListener('offline', () => render());
+
+/* ---------------- Surveillance ---------------- */
+// Le téléphone est « armé » quand le PC course publie (via le pont webresults) que son numéro est en piste.
+const mine = () => trk && String(trk.bib || '') === S.bib && !!S.bib;
+const armedNow = () => devStatus === 'ok' && trk && trk.status === 'run' && mine();
+let armed = false, runId = 0, myFin = null;
+function onTrack() {
+  const a = armedNow();
+  if (a && (!armed || Number(trk.startAt) !== runId)) { armed = true; runId = Number(trk.startAt) || Date.now(); lowN = 0; stopSince = null; lastSent = 0; log('armé', { run: runId }); tick(); }
+  else if (!a && armed) { armed = false; log('désarmé', { st: trk ? trk.status : '' }); lastSent = 0; tick(); }
+  if (trk && trk.status === 'fin' && mine()) myFin = { time: trk.time, at: Date.now() };
+}
+
+/* ---------------- GPS ---------------- */
+let watchId = null, fix = null, prevFix = null, lowN = 0, lowT = null, stopSince = null, lastS = null, loc = null, gpsErr = '';
+function gpsWanted() { return document.visibilityState === 'visible' && (S.test || (S.code && devStatus !== 'refused' && devStatus !== 'gone')); }
+function gpsSync() {
+  const want = gpsWanted() && 'geolocation' in navigator;
+  if (want && watchId === null) {
+    watchId = navigator.geolocation.watchPosition(onFix, e => { gpsErr = e.code === 1 ? 'Localisation refusée : autorisez-la pour ce site dans les réglages du téléphone.' : 'GPS indisponible pour le moment.'; render(); },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
+  } else if (!want && watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+}
+function onFix(p) {
+  gpsErr = '';
+  const t = p.timestamp || Date.now(), c = p.coords;
+  const f = { t, lat: c.latitude, lng: c.longitude, acc: c.accuracy, raw: Number.isFinite(c.speed) && c.speed >= 0 ? c.speed : null };
+  f.calc = prevFix && t > prevFix.t ? ET.dist(prevFix.lat, prevFix.lng, f.lat, f.lng) / ((t - prevFix.t) / 1000) : null;
+  f.v = f.raw !== null ? f.raw : f.calc;
+  const low = f.v !== null && f.v < C.vStop;
+  if (low) { if (lowN === 0) lowT = t; lowN++; } else if (f.v !== null) { lowN = 0; lowT = null; stopSince = null; }
+  if (lowN >= C.nStop && !stopSince) stopSince = lowT;
+  if (refPr) { loc = ET.locate(refPr, f.lat, f.lng, lastS); if (loc) lastS = loc.s; } else loc = null;
+  prevFix = f; fix = f;
+  log('point', { lat: f.lat, lng: f.lng, acc: f.acc, raw: f.raw, calc: f.calc, v: f.v, low, stopFor: stopFor(), d: loc ? loc.s : null, z: loc ? loc.zone : '' });
+  renderLight();
+}
+const stopFor = () => stopSince ? Math.max(0, (Date.now() - stopSince) / 1000) : 0;
+
+/* ---------------- Envoi ---------------- */
+let lastSent = 0, seq = 0, lastOk = 0, lastErr = '', sending = false;
+function tick() {
+  if (!window.FB || !fbUser || !S.code || devStatus !== 'ok' || !fix) return;
+  const now = Date.now(), every = (armed ? C.fast : C.slow) * 1000;
+  if (document.visibilityState !== 'visible' && !armed) return;
+  if (now - lastSent < every - 150 || sending) return;
+  lastSent = now; seq++;
+  const { fs, doc, setDoc } = window.FB;
+  const body = { uid: fbUser.uid, bib: S.bib, name: S.name || '', lat: +fix.lat.toFixed(6), lng: +fix.lng.toFixed(6), acc: Math.round(fix.acc || 0),
+    spd: fix.v === null ? null : Math.round(fix.v * 10) / 10, stopFor: armed ? Math.round(stopFor()) : 0, armed, run: armed ? runId : 0,
+    d: loc ? Math.round(loc.s) : null, z: loc ? loc.zone : '', fa: Math.max(0, Math.round((now - fix.t) / 1000)), v: document.visibilityState === 'visible', seq, t: now };
+  sending = true;
+  const t0 = performance.now();
+  setDoc(doc(fs, 'events', S.code, 'trace', fbUser.uid), body)
+    .then(() => { lastOk = Date.now(); lastErr = ''; log('envoi', { ok: 1, ms: Math.round(performance.now() - t0), seq, armed, stopFor: body.stopFor }); })
+    .catch(e => { lastErr = (e && e.code) || 'erreur'; log('envoi', { ok: 0, err: lastErr, seq }); })
+    .finally(() => { sending = false; renderLight(); });
+}
+setInterval(tick, 500);
+
+/* ---------------- Écran allumé ---------------- */
+let wake = null, wakeOk = null;
+async function wakeSync() {
+  if (document.visibilityState !== 'visible' || !(S.code || S.test)) return;
+  if (!('wakeLock' in navigator)) { wakeOk = false; return; }
+  if (wake) return;
+  try { wake = await navigator.wakeLock.request('screen'); wakeOk = true; wake.addEventListener('release', () => { wake = null; if (document.visibilityState === 'visible') wakeSync(); }); }
+  catch (e) { wakeOk = false; }
+  renderLight();
+}
+let batt = null;
+if (navigator.getBattery) navigator.getBattery().then(b => { batt = b; const f = () => renderLight(); b.addEventListener('levelchange', f); b.addEventListener('chargingchange', f); }).catch(() => {});
+document.addEventListener('visibilitychange', () => { log('écran', { v: document.visibilityState }); gpsSync(); wakeSync(); if (document.visibilityState === 'visible') { lastSent = 0; tick(); } render(); });
+
+/* ---------------- Journal d'essai (CSV) ---------------- */
+let LOG = [];
+try { LOG = JSON.parse(localStorage.getItem(LOGK) || '[]'); if (!Array.isArray(LOG)) LOG = []; } catch (e) { LOG = []; }
+let logDirty = false;
+function log(type, o) { if (!S.test) return; LOG.push({ t: Date.now(), type, ...o }); if (LOG.length > 40000) LOG.splice(0, LOG.length - 40000); logDirty = true; }
+setInterval(() => { if (!logDirty) return; logDirty = false; try { localStorage.setItem(LOGK, JSON.stringify(LOG)); } catch (e) { try { LOG.splice(0, Math.floor(LOG.length / 3)); localStorage.setItem(LOGK, JSON.stringify(LOG)); } catch (e2) {} } }, 5000);
+function exportCsv() {
+  const cols = ['heure', 'type', 'lat', 'lng', 'precision_m', 'vitesse_gps_ms', 'vitesse_calc_ms', 'vitesse_ms', 'lent', 'arret_s', 'distance_depart_m', 'zone', 'envoi_ok', 'envoi_ms', 'detail'];
+  const n = (v, d) => Number.isFinite(v) ? v.toFixed(d).replace('.', ',') : '';
+  const lines = [cols.join(';')].concat(LOG.map(r => { const d = new Date(r.t); return [
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())},${String(d.getMilliseconds()).padStart(3, '0')}`,
+    r.type, n(r.lat, 6), n(r.lng, 6), n(r.acc, 1), n(r.raw, 2), n(r.calc, 2), n(r.v, 2), r.low === undefined ? '' : r.low ? 1 : 0, n(r.stopFor, 0), n(r.d, 0), r.z || '',
+    r.ok === undefined ? '' : r.ok, n(r.ms, 0), [r.err, r.v && typeof r.v === 'string' ? r.v : '', r.st, r.run ? 'run ' + r.run : ''].filter(Boolean).join(' ')].join(';'); }));
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a'); const d = new Date();
+  a.href = URL.createObjectURL(blob); a.download = `e-trace_${S.bib || 'essai'}_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.csv`;
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+function clearLog() { if (!confirm('Effacer le journal d\'essai de ce téléphone ?')) return; LOG = []; logDirty = true; render(); }
+function setTest(v) { S.test = !!v; persist(); log('essai', { v: S.test ? 'début' : 'fin' }); gpsSync(); wakeSync(); render(); }
+
+/* ---------------- Affichage ---------------- */
+function head() { return `<div class="top"><span class="flagmark" aria-hidden="true"></span><h1>e-Trace</h1>${S.code && S.bib ? `<span class="bib">${esc(S.bib)}</span>` : '<span class="sub">Ligue du sport automobile</span>'}</div>`; }
+function gpsTxt() {
+  if (!('geolocation' in navigator)) return ['GPS absent sur cet appareil', 'bad'];
+  if (gpsErr) return [gpsErr, 'bad'];
+  if (!fix) return ['Recherche…', 'mid'];
+  const age = (Date.now() - fix.t) / 1000;
+  if (age > 10) return [`Dernier point il y a ${Math.round(age)} s`, 'bad'];
+  return [`Précision ± ${Math.round(fix.acc)} m`, fix.acc <= 10 ? 'good' : fix.acc <= 25 ? 'mid' : 'bad'];
+}
+function linkTxt() {
+  if (!navigator.onLine) return ['Hors réseau', 'bad'];
+  if (!window.FB || !fbUser) return ['Connexion…', 'mid'];
+  if (lastErr) return ['Envoi refusé (' + lastErr + ')', 'bad'];
+  if (devStatus !== 'ok') return ['Connecté', 'good'];
+  if (!lastOk) return ['Connecté · premier envoi…', 'mid'];
+  const a = Math.round((Date.now() - lastOk) / 1000);
+  return [a <= (armed ? 6 : C.slow + 10) ? `Connecté · envoi il y a ${a} s` : `Dernier envoi il y a ${a} s`, a <= (armed ? 6 : C.slow + 10) ? 'good' : 'bad'];
+}
+function rowsHTML() {
+  const g = gpsTxt(), l = linkTxt();
+  const w = wakeOk === null ? ['…', 'mid'] : wakeOk ? ['Maintenu allumé', 'good'] : ['Réglez la mise en veille sur « Jamais »', 'mid'];
+  let b = '';
+  if (batt) { const pc = Math.round(batt.level * 100); b = `<div class="row"><span>Batterie</span><b class="${batt.charging || pc > 40 ? 'good' : 'mid'}">${pc} %${batt.charging ? ' · en charge' : pc <= 40 ? ' · branchez le câble' : ''}</b></div>`; }
+  return `<div class="card"><div class="rows">
+    <div class="row"><span>GPS</span><b class="${g[1]}" id="r-gps">${esc(g[0])}</b></div>
+    ${S.code ? `<div class="row"><span>Liaison PC course</span><b class="${l[1]}" id="r-link">${esc(l[0])}</b></div>` : ''}
+    <div class="row"><span>Écran</span><b class="${w[1]}">${esc(w[0])}</b></div>${b}</div></div>`;
+}
+function planHTML() {
+  if (!refPr) return '';
+  const dots = fix ? [{ lat: fix.lat, lng: fix.lng, color: armed ? '#2e9a46' : '#1f5fae', pulse: true }] : [];
+  const th = armed ? { road: '#24476b', chrono: '#3fae62', liaison: '#5d7f9e', ink: '#ffffff', muted: '#9cc3dd', bg: '#12304f', mark: '#3d7cc9' } : {};
+  return `<div class="card"><div style="display:flex;justify-content:space-between;font-size:.85rem;color:${armed ? '#9cc3dd' : 'var(--muted)'}"><span>${esc(refName || 'Plan du tracé')}</span><span id="r-where">${esc(loc ? ET.where(refPr, loc.s) : '')}</span></div><div class="plan" id="plan">${ET.svg(refPr, dots, th)}</div></div>`;
+}
+function testHTML() {
+  const sf = stopFor();
+  return `<div class="card test"><h2 style="font-size:1.25rem">Mode essai · journal</h2>
+    <div class="grid2"><div class="tile"><small>Vitesse</small><b id="t-v">${fix && fix.v !== null ? num(fix.v, 1) + ' m/s' : '—'}</b></div>
+    <div class="tile"><small>Détection d'arrêt</small><b id="t-s" class="${sf >= C.red ? 'bad' : sf >= C.orange ? 'mid' : ''}">${sf ? Math.floor(sf) + ' s' : 'en mouvement'}</b></div></div>
+    <p style="margin:0;font-size:.9rem;color:var(--muted)"><span id="t-n">${LOG.length}</span> ligne(s) enregistrée(s) sur ce téléphone. Seuils : arrêt sous ${num(C.vStop, 1)} m/s sur ${C.nStop} points, orange à ${C.orange} s, rouge à ${C.red} s.</p>
+    <button class="btn" onclick="exportCsv()" ${LOG.length ? '' : 'disabled'}>Exporter le journal (CSV)</button>
+    <div class="grid2"><button class="btn2" onclick="clearLog()">Effacer le journal</button><button class="btn2" onclick="setTest(false)">Arrêter le mode essai</button></div></div>`;
+}
+function heroHTML() {
+  const run = trk && trk.status === 'run' && trk.bib;
+  if (devStatus === 'pending') return `<div class="hero pend"><div class="k">Demande envoyée</div><div class="v" style="font-size:2.1rem">En attente</div><p>Le PC course doit accepter ce téléphone (ligne « e-Trace n° ${esc(S.bib)} »).</p></div>`;
+  if (devStatus === 'refused' || devStatus === 'gone') return `<div class="hero ko"><div class="k">${devStatus === 'refused' ? 'Refusé par le PC course' : 'Retiré de l\'épreuve'}</div><div class="v" style="font-size:2rem">Non suivi</div><p>Demandez au PC course de vous accepter, puis touchez « Rejoindre à nouveau ».</p><button class="btn" style="margin-top:8px" onclick="rejoin()">Rejoindre à nouveau</button></div>`;
+  if (devStatus !== 'ok') return `<div class="hero pend"><div class="k">Liaison</div><div class="v" style="font-size:2rem">Connexion…</div></div>`;
+  if (armed) {
+    const sf = stopFor();
+    return `<div class="hero run"><div class="k"><span class="dot"></span>Surveillance active</div><div class="v">En piste</div><p>${trk.startAt ? 'Départ chronométré à ' + hms(Number(trk.startAt)) : 'Départ reçu'}</p>${sf >= C.orange ? `<p class="stopbadge" id="h-stop">Arrêt signalé au PC course · ${Math.floor(sf)} s</p>` : '<p class="stopbadge" id="h-stop"></p>'}</div>`;
+  }
+  if (myFin && Date.now() - myFin.at < 60000) return `<div class="hero fin"><div class="k">Surveillance terminée</div><div class="v">Arrivé</div><p>${myFin.time ? 'Temps ' + esc(myFin.time) + ' · ' : ''}vous pouvez verrouiller le téléphone.</p></div>`;
+  return `<div class="hero"><div class="k">Surveillance</div><div class="v" style="font-size:2.3rem">En attente</div><p>Elle démarre seule dès que les cellules de départ vous ont vu passer, et s'arrête à l'arrivée.${run && !mine() ? `<br>En piste actuellement : n° ${esc(trk.bib)}.` : ''}</p></div>`;
+}
+async function rejoin() {
+  if (!window.FB || !fbUser || !S.code) return;
+  const { fs, doc, setDoc } = window.FB;
+  if (devStatus === 'gone') await setDoc(doc(fs, 'events', S.code, 'devices', fbUser.uid), devDoc('pending')).catch(() => {});
+  else alert('Le PC course doit retirer le refus : dans PC course, touchez « Accepter » sur la ligne « e-Trace n° ' + S.bib + ' ».');
+}
+
+function render() {
+  gpsSync();
+  const app = document.getElementById('app');
+  document.body.classList.toggle('armed', !!armed);
+  if (!S.code) {
+    const vals = {}; for (const id of ['code', 'bibIn']) { const el = document.getElementById(id); vals[id] = el ? el.value : null; }
+    const ae = document.activeElement, keep = ae && (ae.id === 'code' || ae.id === 'bibIn') ? { id: ae.id, s: ae.selectionStart } : null;
+    app.innerHTML = head() + `<p style="margin:0">Votre téléphone signale votre position au PC course pendant vos montées. En cas d'arrêt en piste, la direction de course est prévenue aussitôt.</p>
+      <div class="card">
+        <label>Code de l'épreuve<input type="text" id="code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ex. PAPENOO-1234"></label>
+        <label>Votre n° de course<input type="tel" id="bibIn" inputmode="numeric" autocomplete="off" placeholder="ex. 21" value="${esc(S.bib)}"></label>
+        <button class="btn" onclick="join()" ${joinBusy ? 'disabled' : ''}>Rejoindre l'épreuve</button>
+        <div class="msg">${esc(joinMsg)}</div></div>
+      <div class="card"><h2 style="font-size:1.3rem">Avant de partir</h2><div class="steps">
+        <div><b>1</b><span>Autorisez la localisation précise quand le téléphone la demande.</span></div>
+        <div><b>2</b><span>Fixez le téléphone sur un support, câble de charge branché si possible.</span></div>
+        <div><b>3</b><span>Laissez e-Trace ouvert. Au parc, vous pouvez verrouiller le téléphone ; déverrouillez-le avant de partir.</span></div></div></div>
+      ${S.test ? rowsHTML() + testHTML() : `<button class="link" onclick="setTest(true)">Mode essai (sans épreuve) : tester le GPS et enregistrer un journal</button>`}
+      <div class="foot">Facultatif · aucune position n'est conservée après l'épreuve</div>`;
+    for (const id in vals) { const el = document.getElementById(id); if (el && vals[id] !== null) el.value = vals[id]; }
+    if (keep) { const el = document.getElementById(keep.id); el.focus(); try { el.setSelectionRange(keep.s, keep.s); } catch (e) {} }
+    return;
+  }
+  const who = S.name ? `<div class="who"><small>Épreuve ${esc(ev && ev.name ? ev.name : S.code)}</small>${esc(S.name)}${(() => { const p = pilots && pilots.find(x => String(x.n) === S.bib); return p && p.veh ? ' · ' + esc(p.veh) : ''; })()}</div>` : '';
+  app.innerHTML = head() + heroHTML() + (armed ? '' : who) + planHTML() + rowsHTML()
+    + (armed ? '' : `<div class="note"><b>Au parc, vous pouvez verrouiller le téléphone.</b> Déverrouillez-le avant de rejoindre la pré-grille, e-Trace à l'écran : il restera allumé jusqu'à l'arrivée.</div>`)
+    + (S.test ? testHTML() : '')
+    + `<div class="foot">${armed ? 'Rien à faire pendant la montée.' : `<button class="link" onclick="setTest(${!S.test})">${S.test ? '' : 'Mode essai : enregistrer un journal (CSV)'}</button><button class="link" onclick="leave()">Quitter l'épreuve</button>`}</div>`;
+}
+// mise à jour légère (sans reconstruire la page) à chaque point GPS
+function renderLight() {
+  const set = (id, txt, cls) => { const el = document.getElementById(id); if (el) { el.textContent = txt; if (cls !== undefined) el.className = cls; } };
+  const g = gpsTxt(); set('r-gps', g[0], g[1]);
+  if (S.code) { const l = linkTxt(); set('r-link', l[0], l[1]); }
+  if (S.test) { set('t-v', fix && fix.v !== null ? num(fix.v, 1) + ' m/s' : '—'); const sf = stopFor(); set('t-s', sf ? Math.floor(sf) + ' s' : 'en mouvement', sf >= C.red ? 'bad' : sf >= C.orange ? 'mid' : ''); set('t-n', String(LOG.length)); }
+  if (armed) { const sf = stopFor(); set('h-stop', sf >= C.orange ? `Arrêt signalé au PC course · ${Math.floor(sf)} s` : ''); }
+  if (refPr && document.getElementById('plan')) {
+    const th = armed ? { road: '#24476b', chrono: '#3fae62', liaison: '#5d7f9e', ink: '#ffffff', muted: '#9cc3dd', bg: '#12304f', mark: '#3d7cc9' } : {};
+    document.getElementById('plan').innerHTML = ET.svg(refPr, fix ? [{ lat: fix.lat, lng: fix.lng, color: armed ? '#2e9a46' : '#1f5fae', pulse: true }] : [], th);
+    set('r-where', loc ? ET.where(refPr, loc.s) : '');
+  }
+}
+setInterval(() => { renderLight(); if (myFin && Date.now() - myFin.at > 60000 && Date.now() - myFin.at < 61500) render(); }, 1000);
+render(); wakeSync();
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+  import { getAuth, onAuthStateChanged, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+  import { initializeFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+  const firebaseConfig = {
+    apiKey: "AIzaSyBYM6TXeceffH_8EhN7Z8OHMqqAzCMFVMI",
+    authDomain: "pc-course-1f72d.firebaseapp.com",
+    projectId: "pc-course-1f72d",
+    storageBucket: "pc-course-1f72d.firebasestorage.app",
+    messagingSenderId: "248277916287",
+    appId: "1:248277916287:web:65796f0e94ca866dc5bd4a"
+  };
+  if (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+    const app = initializeApp(firebaseConfig, 'lsa-etrace');
+    const auth = getAuth(app);
+    // pas de cache persistant : une position en retard n'a pas d'intérêt, on ne garde pas d'envois en file d'attente
+    const fs = initializeFirestore(app, {});
+    window.FB = { auth, fs, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, signInAnon: () => signInAnonymously(auth) };
+    onAuthStateChanged(auth, u => window.liveAuthChanged && window.liveAuthChanged(u));
+    window.liveReady && window.liveReady();
+  }
+</script>
+</body>
+</html>
