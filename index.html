@@ -82,6 +82,8 @@
   .test { border: 2px dashed var(--warn); }
   .foot { font-size: .8rem; color: var(--muted); text-align: center; display: grid; gap: 4px; justify-items: center; }
   body.armed .foot { color: #9cc3dd; }
+  .beta { font-family: var(--f-display); font-weight: 800; font-size: .85rem; text-transform: uppercase; letter-spacing: .06em; background: #6a4fc4; color: #fff; border-radius: 6px; padding: 2px 7px; }
+  .betaline { color: #6a4fc4; font-weight: 700; } body.armed .betaline { color: #c9b8ff; }
   .stopbadge { font-family: var(--f-display); font-weight: 800; font-size: 1.2rem; text-transform: uppercase; }
 </style>
 </head>
@@ -212,6 +214,18 @@ const ET = (() => {
     if (dur >= c.orange && !nearEnd) return { lvl: 'orange', dur: Math.floor(dur) };
     return { lvl: 'ok' };
   }
+  // Départ simulé depuis e-Trace (bouton d'essai, version bêta) : faute de pilote en piste publié par le PC course,
+  // un téléphone en « départ simulé » tient lieu de pilote en piste, pour tester les alertes sans course.
+  const simSeen = new Map();
+  function effTrk(trk, traces, now = Date.now()) {
+    if (trk && trk.status === 'run' && trk.bib) return trk;
+    let best = null;
+    for (const T of traces) if (T && T.sim && T.armed && T.run && (now - (T._got || 0)) / 1000 < 120 && (!best || (T.t || 0) > (best.t || 0))) best = T;
+    if (!best) return trk;
+    const k = best.bib + '|' + best.run; if (!simSeen.has(k)) simSeen.set(k, best._got || now);
+    return { status: 'run', bib: String(best.bib), name: best.name || '', startAt: best.run, _got: simSeen.get(k), sim: true };
+  }
+  const BETA = 'Version bêta de test · à remplacer avant la première épreuve 2027';
   const COL = { orange: '#e07a00', red: '#b3261e', lost: '#6a4fc4', ok: '#1d7a3a' };
   const LBL = { orange: 'Arrêté', red: 'Arrêt prolongé', lost: 'Position perdue' };
 
@@ -251,7 +265,7 @@ const ET = (() => {
     if (fixes.length < 2) return null;
     return build(fixes, [{ k: 'dep', t: 0 }, { k: 'arr', t: (fixes.length - 1) * 1000 }]);
   }
-  return { DEF, cfg, dist, prep, locate, where, at, svg, alertState, COL, LBL, build, fromGpx, km };
+  return { BETA, effTrk, DEF, cfg, dist, prep, locate, where, at, svg, alertState, COL, LBL, build, fromGpx, km };
 })();
 
 
@@ -329,14 +343,22 @@ window.addEventListener('offline', () => render());
 /* ---------------- Surveillance ---------------- */
 // Le téléphone est « armé » quand le PC course publie (via le pont webresults) que son numéro est en piste.
 const mine = () => trk && String(trk.bib || '') === S.bib && !!S.bib;
-const armedNow = () => devStatus === 'ok' && trk && trk.status === 'run' && mine();
-let armed = false, runId = 0, myFin = null;
+// Version bêta : un bouton « Simuler un départ » arme aussi le téléphone, pour tester les alertes sans course.
+const realRun = () => devStatus === 'ok' && trk && trk.status === 'run' && mine();
+let armed = false, runId = 0, myFin = null, sim = 0;
 function onTrack() {
-  const a = armedNow();
-  if (a && (!armed || Number(trk.startAt) !== runId)) { armed = true; runId = Number(trk.startAt) || Date.now(); lowN = 0; stopSince = null; lastSent = 0; log('armé', { run: runId }); tick(); }
+  if (realRun() && sim) sim = 0;
+  const a = realRun() || (devStatus === 'ok' && sim > 0), rid = realRun() ? (Number(trk.startAt) || Date.now()) : sim;
+  if (a && (!armed || rid !== runId)) { armed = true; runId = rid; lowN = 0; stopSince = null; lastSent = 0; log('armé', { run: runId, st: sim ? 'départ simulé' : '' }); tick(); }
   else if (!a && armed) { armed = false; log('désarmé', { st: trk ? trk.status : '' }); lastSent = 0; tick(); }
   if (trk && trk.status === 'fin' && mine()) myFin = { time: trk.time, at: Date.now() };
 }
+function simStart() {
+  if (realRun()) return;
+  if (!confirm('Simuler un départ ? Le PC course et le DC verront un départ d\'ESSAI pour le n° ' + S.bib + '. À n\'utiliser qu\'en test, jamais pendant une épreuve.')) return;
+  sim = Date.now(); onTrack(); render();
+}
+function simStop() { sim = 0; log('désarmé', { st: 'fin de la simulation' }); onTrack(); render(); }
 
 /* ---------------- GPS ---------------- */
 let watchId = null, fix = null, prevFix = null, lowN = 0, lowT = null, stopSince = null, lastS = null, loc = null, gpsErr = '';
@@ -374,7 +396,7 @@ function tick() {
   lastSent = now; seq++;
   const { fs, doc, setDoc } = window.FB;
   const body = { uid: fbUser.uid, bib: S.bib, name: S.name || '', lat: +fix.lat.toFixed(6), lng: +fix.lng.toFixed(6), acc: Math.round(fix.acc || 0),
-    spd: fix.v === null ? null : Math.round(fix.v * 10) / 10, stopFor: armed ? Math.round(stopFor()) : 0, armed, run: armed ? runId : 0,
+    spd: fix.v === null ? null : Math.round(fix.v * 10) / 10, stopFor: armed ? Math.round(stopFor()) : 0, armed, run: armed ? runId : 0, sim: armed && sim > 0 && !realRun(),
     d: loc ? Math.round(loc.s) : null, z: loc ? loc.zone : '', fa: Math.max(0, Math.round((now - fix.t) / 1000)), v: document.visibilityState === 'visible', seq, t: now };
   sending = true;
   const t0 = performance.now();
@@ -421,7 +443,7 @@ function clearLog() { if (!confirm('Effacer le journal d\'essai de ce téléphon
 function setTest(v) { S.test = !!v; persist(); log('essai', { v: S.test ? 'début' : 'fin' }); gpsSync(); wakeSync(); render(); }
 
 /* ---------------- Affichage ---------------- */
-function head() { return `<div class="top"><span class="flagmark" aria-hidden="true"></span><h1>e-Trace</h1>${S.code && S.bib ? `<span class="bib">${esc(S.bib)}</span>` : '<span class="sub">Ligue du sport automobile</span>'}</div>`; }
+function head() { return `<div class="top"><span class="flagmark" aria-hidden="true"></span><h1>e-Trace</h1><span class="beta" title="${esc(ET.BETA)}">Bêta</span>${S.code && S.bib ? `<span class="bib">${esc(S.bib)}</span>` : '<span class="sub">Ligue du sport automobile</span>'}</div>`; }
 function gpsTxt() {
   if (!('geolocation' in navigator)) return ['GPS absent sur cet appareil', 'bad'];
   if (gpsErr) return [gpsErr, 'bad'];
@@ -471,6 +493,7 @@ function heroHTML() {
   if (devStatus !== 'ok') return `<div class="hero pend"><div class="k">Liaison</div><div class="v" style="font-size:2rem">Connexion…</div></div>`;
   if (armed) {
     const sf = stopFor();
+    if (sim && !realRun()) return `<div class="hero run" style="background:#6a4fc4"><div class="k" style="color:#e4dcff"><span class="dot"></span>Essai · départ simulé</div><div class="v">En piste</div><p>Départ simulé à ${hms(sim)} : le PC course et le DC voient un départ d'essai.</p>${sf >= C.orange ? `<p class="stopbadge" id="h-stop">Arrêt signalé au PC course · ${Math.floor(sf)} s</p>` : '<p class="stopbadge" id="h-stop"></p>'}<button class="btn" style="margin-top:8px;background:#fff;color:#4a3590" onclick="simStop()">■ Terminer l'essai</button></div>`;
     return `<div class="hero run"><div class="k"><span class="dot"></span>Surveillance active</div><div class="v">En piste</div><p>${trk.startAt ? 'Départ chronométré à ' + hms(Number(trk.startAt)) : 'Départ reçu'}</p>${sf >= C.orange ? `<p class="stopbadge" id="h-stop">Arrêt signalé au PC course · ${Math.floor(sf)} s</p>` : '<p class="stopbadge" id="h-stop"></p>'}</div>`;
   }
   if (myFin && Date.now() - myFin.at < 60000) return `<div class="hero fin"><div class="k">Surveillance terminée</div><div class="v">Arrivé</div><p>${myFin.time ? 'Temps ' + esc(myFin.time) + ' · ' : ''}vous pouvez verrouiller le téléphone.</p></div>`;
@@ -501,16 +524,17 @@ function render() {
         <div><b>2</b><span>Fixez le téléphone sur un support, câble de charge branché si possible.</span></div>
         <div><b>3</b><span>Laissez e-Trace ouvert. Au parc, vous pouvez verrouiller le téléphone ; déverrouillez-le avant de partir.</span></div></div></div>
       ${S.test ? rowsHTML() + testHTML() : `<button class="link" onclick="setTest(true)">Mode essai (sans épreuve) : tester le GPS et enregistrer un journal</button>`}
-      <div class="foot">Facultatif · aucune position n'est conservée après l'épreuve</div>`;
+      <div class="foot"><span>Facultatif · aucune position n'est conservée après l'épreuve</span><span class="betaline">${esc(ET.BETA)}</span></div>`;
     for (const id in vals) { const el = document.getElementById(id); if (el && vals[id] !== null) el.value = vals[id]; }
     if (keep) { const el = document.getElementById(keep.id); el.focus(); try { el.setSelectionRange(keep.s, keep.s); } catch (e) {} }
     return;
   }
   const who = S.name ? `<div class="who"><small>Épreuve ${esc(ev && ev.name ? ev.name : S.code)}</small>${esc(S.name)}${(() => { const p = pilots && pilots.find(x => String(x.n) === S.bib); return p && p.veh ? ' · ' + esc(p.veh) : ''; })()}</div>` : '';
-  app.innerHTML = head() + heroHTML() + (armed ? '' : who) + planHTML() + rowsHTML()
+  const simBtn = devStatus === 'ok' && !armed ? `<div class="card" style="border:2px dashed #6a4fc4"><button class="btn" style="background:#6a4fc4;color:#fff" onclick="simStart()">▶ Simuler un départ (essai)</button><span style="font-size:.88rem;color:var(--muted)">Version bêta : arme le téléphone comme un vrai départ, pour tester les alertes au PC course et sur e-DC sans course. Arrêtez-vous pour déclencher l'orange (2 s) puis le rouge (10 s).</span></div>` : '';
+  app.innerHTML = head() + heroHTML() + simBtn + (armed ? '' : who) + planHTML() + rowsHTML()
     + (armed ? '' : `<div class="note"><b>Au parc, vous pouvez verrouiller le téléphone.</b> Déverrouillez-le avant de rejoindre la pré-grille, e-Trace à l'écran : il restera allumé jusqu'à l'arrivée.</div>`)
     + (S.test ? testHTML() : '')
-    + `<div class="foot">${armed ? 'Rien à faire pendant la montée.' : `<button class="link" onclick="setTest(${!S.test})">${S.test ? '' : 'Mode essai : enregistrer un journal (CSV)'}</button><button class="link" onclick="leave()">Quitter l'épreuve</button>`}</div>`;
+    + `<div class="foot">${armed ? 'Rien à faire pendant la montée.' : `<button class="link" onclick="setTest(${!S.test})">${S.test ? '' : 'Mode essai : enregistrer un journal (CSV)'}</button><button class="link" onclick="leave()">Quitter l'épreuve</button>`}<span class="betaline">${esc(ET.BETA)}</span></div>`;
 }
 // mise à jour légère (sans reconstruire la page) à chaque point GPS
 function renderLight() {
