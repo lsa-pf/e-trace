@@ -1,6 +1,6 @@
 // e-Trace (téléphone du pilote) — mise en cache pour s'ouvrir même sans réseau.
 // Changer VERSION à chaque mise à jour de la page pour que les appareils la récupèrent.
-const VERSION = 'e-trace-v2';
+const VERSION = 'e-trace-v3';
 const FILES = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
